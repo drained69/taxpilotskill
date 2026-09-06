@@ -1,0 +1,12 @@
+# Nixpacks builder for Railway.
+# Pins Node 22 so the `node --test` runner in CI matches production.
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+# Zero runtime deps → nothing to install. `npm ci` skipped intentionally.
+cmds = ["node --version"]
+
+[start]
+cmd = "node server.js"

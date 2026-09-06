@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+# Lock down default token permissions.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Show environment
+        run: |
+          node --version
+          npm --version
+
+      - name: Run tests
+        env:
+          NODE_ENV: test
+        run: node --test test/*.test.js
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # TaxPilot has zero runtime dependencies today; this catches the moment
+      # anyone adds one that carries known vulnerabilities.
+      - name: npm audit (production)
+        run: npm audit --omit=dev --audit-level=moderate || true
+
+  secret-scan:
+    name: Basic secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Fail if any high-signal secret pattern shows up in the tree.
+      # Not a substitute for a real scanner (trufflehog, gitleaks), but a
+      # cheap and dependency-free first line of defense.
+      - name: Grep for secret patterns
+        run: |
+          set +e
+          matches=0
+          patterns=(
+            'BEGIN RSA PRIVATE KEY'
+            'BEGIN OPENSSH PRIVATE KEY'
+            'BEGIN PRIVATE KEY'
+            'AKIA[0-9A-Z]{16}'                 # AWS access key
+            'sk_live_[A-Za-z0-9]{24,}'         # Stripe live secret
+            'ghp_[A-Za-z0-9]{36}'              # GitHub personal token
+            'xox[baprs]-[A-Za-z0-9-]{10,}'     # Slack token
+          )
+          for p in "${patterns[@]}"; do
+            hits=$(grep -RInE "$p" --exclude-dir=node_modules --exclude-dir=.git . || true)
+            if [ -n "$hits" ]; then
+              echo "::error::secret pattern matched: $p"
+              echo "$hits"
+              matches=$((matches+1))
+            fi
+          done
+          exit $matches
+
+  build-check:
+    name: Server boots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Boot server and hit /api/health
+        env:
+          PORT: '4123'
+          NODE_ENV: development
+        run: |
+          node server.js &
+          SERVER_PID=$!
+          # Wait for the server to be reachable (max 10s).
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:4123/api/health > /dev/null; then break; fi
+            sleep 0.25
+          done
+          curl -sf http://localhost:4123/api/health | tee health.json
+          test "$(node -e 'console.log(JSON.parse(require("fs").readFileSync("health.json")).ok)')" = "true"
+          kill $SERVER_PID

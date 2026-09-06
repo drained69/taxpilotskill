@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#102721">
+<meta name="description" content="TaxPilot is a read-only, MCP-native tax skill for Claude and compatible agents that turns Binance account history into explainable US crypto tax records.">
+<title>TaxPilot | Crypto tax intelligence for AI agents</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand" aria-label="TaxPilot">
+      <span class="brand-mark">TP</span>
+      <span class="brand-word">TaxPilot</span>
+    </div>
+    <div class="header-label"><span></span>MCP-native agent skill</div>
+  </header>
+
+  <main>
+    <section class="hero container">
+      <div class="hero-copy">
+        <p class="eyebrow">Built for Claude and compatible AI agents</p>
+        <h1>Explainable crypto tax work, inside the conversation.</h1>
+        <p class="hero-lede">
+          TaxPilot is a read-only agent skill that turns a user's Binance account history into
+          structured US tax records. It works through Binance Agent OS over MCP, so the agent can
+          gather activity, compute FIFO gains, and resolve missing context with the user without
+          sending them to a separate dashboard.
+        </p>
+        <div class="scope-line" aria-label="Product scope">
+          <span>US federal</span><span>FIFO</span><span>Tax year 2025</span><span>Read-only</span>
+        </div>
+      </div>
+
+      <aside class="conversation" aria-label="Example TaxPilot conversation">
+        <div class="conversation-head">
+          <div><i></i><i></i><i></i></div>
+          <span>Agent session</span>
+          <b>TaxPilot active</b>
+        </div>
+        <div class="message user-message">
+          <span>You</span>
+          <p>Calculate my 2025 capital gains from Binance and prepare my Form 8949 records.</p>
+        </div>
+        <div class="agent-row">
+          <div class="agent-avatar">TP</div>
+          <div class="message agent-message">
+            <span>TaxPilot</span>
+            <p>I will read your Binance transaction history, apply account-scoped FIFO, and flag anything that needs your decision. I cannot trade or move funds.</p>
+            <div class="agent-status"><i></i> Waiting for read-only confirmation</div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="definition-band">
+      <div class="container definition-grid">
+        <p class="eyebrow light">What TaxPilot is</p>
+        <div>
+          <h2>A tax methodology an agent can execute.</h2>
+          <p>TaxPilot gives an AI agent the workflow, tool policy, normalization rules, valuation discipline, FIFO methodology, and output schema required to produce a reviewable report from Binance records.</p>
+        </div>
+        <div>
+          <h2>Not another financial dashboard.</h2>
+          <p>There is no account, upload form, or report builder on this website. The product runs in the user's agent session, where questions can be answered in context and unresolved events can be handled conversationally.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="workflow container">
+      <header class="section-heading">
+        <p class="eyebrow">Agent workflow</p>
+        <h2>From one request to a reviewable tax package</h2>
+        <p>The skill defines a six-step process the agent follows in order. Each stage produces an explicit artifact, making the work inspectable and resumable.</p>
+      </header>
+
+      <ol class="workflow-list">
+        <li>
+          <span class="step-number">01</span>
+          <div><h3>Confirm scope and permission</h3><p>The agent confirms the tax year, US jurisdiction, FIFO method, and account scope. It explains exactly what Binance history it will read before making any MCP call.</p></div>
+          <strong>CONSENT</strong>
+        </li>
+        <li>
+          <span class="step-number">02</span>
+          <div><h3>Pull complete Binance history</h3><p>Through the user's authenticated Binance Agent OS MCP session, the agent reads spot, deposit, withdrawal, convert, transfer, futures, and margin records. Relevant calls run in parallel.</p></div>
+          <strong>READ</strong>
+        </li>
+        <li>
+          <span class="step-number">03</span>
+          <div><h3>Normalize every source</h3><p>Different Binance record shapes become one consistent event stream. Records are categorized, account-scoped, timestamped, and deduplicated before tax treatment begins.</p></div>
+          <strong>STRUCTURE</strong>
+        </li>
+        <li>
+          <span class="step-number">04</span>
+          <div><h3>Value without guessing</h3><p>Stablecoin quote values are retained and missing values are derived from available market data. An event that cannot be valued is excluded from totals and placed in the Tax Inbox.</p></div>
+          <strong>VALUE</strong>
+        </li>
+        <li>
+          <span class="step-number">05</span>
+          <div><h3>Compute account-scoped FIFO</h3><p>Taxable disposals consume acquisition lots by account. The agent separates short- and long-term gains, ordinary income, non-taxable transfers, and unresolved events.</p></div>
+          <strong>COMPUTE</strong>
+        </li>
+        <li>
+          <span class="step-number">06</span>
+          <div><h3>Explain, resolve, and deliver</h3><p>The agent presents the result, confidence level, provenance, and Tax Inbox. User decisions are recorded before the final Form 8949 rows and audit package are produced.</p></div>
+          <strong>DELIVER</strong>
+        </li>
+      </ol>
+    </section>
+
+    <section class="outputs-band">
+      <div class="container">
+        <header class="section-heading light-heading">
+          <p class="eyebrow light">Agent output</p>
+          <h2>A result with its reasoning attached</h2>
+          <p>TaxPilot does not reduce a year of account activity to an unexplained number. The result remains connected to source records, lot matching, valuation provenance, and user decisions.</p>
+        </header>
+        <div class="output-grid">
+          <article><span>01</span><h3>Capital result</h3><p>Proceeds, cost basis, gains, losses, and short- versus long-term treatment.</p></article>
+          <article><span>02</span><h3>Form 8949 rows</h3><p>Structured disposal records with acquisition date, disposal date, proceeds, basis, and gain or loss.</p></article>
+          <article><span>03</span><h3>Ordinary income</h3><p>Rewards, staking, airdrops, and other identifiable income presented separately.</p></article>
+          <article><span>04</span><h3>Tax Inbox</h3><p>Missing basis, uncertain ownership, unsupported records, and unavailable valuations requiring input.</p></article>
+          <article><span>05</span><h3>Confidence</h3><p>A resolved-event ratio that reaches 100% only when no event remains unresolved.</p></article>
+          <article><span>06</span><h3>Audit package</h3><p>A structured record of normalized events, calculation outputs, provenance, and decisions.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="architecture container">
+      <header class="section-heading compact">
+        <p class="eyebrow">How it connects</p>
+        <h2>The user stays with their agent</h2>
+      </header>
+      <div class="architecture-flow" aria-label="TaxPilot architecture">
+        <div class="flow-node primary-node"><small>INTERFACE</small><strong>Claude or compatible agent</strong><p>The user asks a tax question and provides decisions in the conversation.</p></div>
+        <span class="flow-arrow">MCP</span>
+        <div class="flow-node"><small>SKILL</small><strong>TaxPilot</strong><p>Controls tool selection, tax methodology, safety rules, and report structure.</p></div>
+        <span class="flow-arrow">MCP</span>
+        <div class="flow-node"><small>DATA SOURCE</small><strong>Binance Agent OS</strong><p>Provides authenticated, read-only account history and market data tools.</p></div>
+      </div>
+      <p class="architecture-note">TaxPilot does not ask the user to paste an OAuth token into a webpage. Authentication remains in the agent's MCP session, and the skill instructs the agent never to print, log, or copy that token.</p>
+    </section>
+
+    <section class="guardrails container">
+      <header class="section-heading compact">
+        <p class="eyebrow">Built-in guardrails</p>
+        <h2>Strict boundaries are part of the product</h2>
+      </header>
+      <div class="guardrail-grid">
+        <article class="safe">
+          <div class="rule-mark">READ</div>
+          <h3>Only approved history tools</h3>
+          <p>The skill restricts the agent to an explicit allowlist of Binance history and market-data tools.</p>
+        </article>
+        <article class="blocked">
+          <div class="rule-mark">BLOCK</div>
+          <h3>No financial actions</h3>
+          <p>Trade, transfer, withdrawal, borrow, order, create, cancel, and other write operations are forbidden.</p>
+        </article>
+        <article class="review">
+          <div class="rule-mark">REVIEW</div>
+          <h3>No invented tax facts</h3>
+          <p>Missing valuations and uncertain transfer ownership become explicit questions instead of silent assumptions.</p>
+        </article>
+        <article class="limited">
+          <div class="rule-mark">SCOPE</div>
+          <h3>No filing or tax advice</h3>
+          <p>TaxPilot performs a mechanical calculation. A licensed professional should review the result before filing.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="scope-band">
+      <div class="container scope-grid">
+        <div>
+          <p class="eyebrow">Version 1 scope</p>
+          <h2>Deliberately narrow, clearly stated.</h2>
+        </div>
+        <dl>
+          <div><dt>Jurisdiction</dt><dd>United States federal</dd></div>
+          <div><dt>Tax year</dt><dd>2025</dd></div>
+          <div><dt>Lot method</dt><dd>FIFO, account-scoped</dd></div>
+          <div><dt>Filing output</dt><dd>Form 8949 + Schedule D records</dd></div>
+        </dl>
+        <div class="out-of-scope">
+          <h3>Outside this version</h3>
+          <p>State tax, non-US jurisdictions, non-FIFO elections, wash-sale determinations, hard-fork treatment, filing, and personalized tax advice.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-brand"><span class="brand-mark">TP</span><div><b>TaxPilot</b><small>MCP-native crypto tax intelligence</small></div></div>
+    <p>Designed to run through Claude and compatible agents using Binance Agent OS.</p>
+    <p>Educational estimates only. Not tax or legal advice.</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "binance-taxpilot",
+  "version": "1.1.0",
+  "description": "Explainable, read-only crypto tax workspace with deep Binance Agent OS (MCP) integration.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
+    "remotion:studio": "remotion studio src/remotion/index.jsx",
+    "remotion:render": "remotion render src/remotion/index.jsx TaxPilotIntro out/taxpilot-intro.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "remotion": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "engines": { "node": ">=18" }
+}

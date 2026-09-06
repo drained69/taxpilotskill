@@ -1,0 +1,23 @@
+# Railway deployment config for TaxPilot.
+#
+# 1. Push this repo to GitHub.
+# 2. Railway → New Project → Deploy from GitHub → pick this repo.
+# 3. In the Service → Settings, add a Volume mounted at /data.
+# 4. Set the env vars listed in Variables (see .env.example for the full list;
+#    minimum for CSV-mode demo: none — TAXPILOT_DATA_DIR defaults to /data.)
+# 5. Deploy. Railway assigns a public URL; use it as your OAuth redirect base
+#    when Binance issues client credentials.
+
+[build]
+builder = "NIXPACKS"
+# Nixpacks auto-detects Node from package.json; no buildCommand needed.
+
+[deploy]
+startCommand = "node server.js"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+# Railway sends SIGTERM on redeploys; TaxPilot's shutdown handler drains
+# in-flight requests and flushes the audit log within this window.
+numReplicas = 1
