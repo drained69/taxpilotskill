@@ -1,280 +1,330 @@
 # TaxPilot
 
-**An explainable, read-only crypto tax workspace with deep [Binance Agent OS](https://www.binance.com/en/agent-os) integration.**
+**Explainable, read-only crypto tax intelligence for [Binance Agent OS](https://www.binance.com/en-NG/agent-os).**
 
-TaxPilot ships in two forms:
+TaxPilot turns a user's raw Binance activity into an audit-ready crypto tax
+report. Every number on the final report can be traced back to a source
+transaction; every ambiguous event surfaces as a human-reviewable decision
+rather than a silent assumption.
 
-- **Skill** (`skill/`) — an MIT-licensed, MCP-native skill for the [Binance Skills Hub](https://www.binance.com/en/skills). An agent (Claude, Cursor, your own) that has authenticated the Binance MCP server can run TaxPilot's methodology directly. See [`skill/SUBMISSION.md`](skill/SUBMISSION.md).
-- **Reference web app** (`server.js` + `public/`) — the same tax engine wrapped in a hardened Node.js server, with OAuth, encrypted token storage, review workflow persistence, audit log, and a browser dashboard.
+TaxPilot ships as an **MIT-licensed, MCP-native skill** for the
+[Binance Skills Hub](https://www.binance.com/en/skills). It runs inside any
+MCP-capable agent (Claude, Cursor, or a custom MCP client) on the Binance
+CSV the user drops into the agent's context. No account is connected. No
+credentials are shared. No network calls are made from user code to Binance.
 
-Both share the same tax methodology in [`src/tax-engine.js`](src/tax-engine.js).
+The tax methodology lives in a pure, deterministic engine in
+[`src/tax-engine.js`](src/tax-engine.js) — same inputs, identical output —
+covered end-to-end by an automated test suite.
 
 ---
 
-## Quick start
+## Jurisdictions supported
 
-Requires Node 18+ (developed on Node 22+).
+| Jurisdiction  | Filing reference                     | Method                             | Rate                                                | Primary legal source                                                                 |
+| ------------- | ------------------------------------ | ---------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| United States | Form 8949 + Schedule D               | Per-wallet FIFO (Rev. Proc. 2024-28) | Short-term vs long-term at user's federal bracket | [IRS Digital Assets](https://www.irs.gov/filing/digital-assets), [Rev. Proc. 2024-28](https://www.irs.gov/pub/irs-drop/rp-24-28.pdf) |
+| Nigeria       | FIRS Capital Gains Tax return        | Per-wallet FIFO                      | 10% flat CGT on net gain                            | [Finance Act 2023 (FIRS)](https://firs.gov.ng/finance-act-2023/)                     |
 
-```bash
-npm start          # http://localhost:3000
-npm test           # 55 tests
+Both jurisdictions share the same normalization, valuation, and FIFO
+matching engine — only the reporting layer (holding period split, tax rate,
+filing form, disclosure notes) differs. Every generated report includes a
+`policy` block that names the jurisdiction, tax year, policy version, and
+the rule sources applied.
+
+Additional jurisdictions are gated on written policy sign-off with a
+licensed practitioner in that jurisdiction; TaxPilot refuses to compute for
+any unsupported region.
+
+---
+
+## How the workflow runs
+
+```
+Binance CSV
+    │
+    ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  1. Parse         csv-import.js  →  typed records                │
+│  2. Normalize     normalize.js   →  canonical tax events         │
+│  3. Value         pricing.js     →  USD FMV per event            │
+│  4. Compute       tax-engine.js  →  disposals · income · totals  │
+│  5. Human review  decision verbs →  resolve unresolved events    │
+│  6. Export        reports.js     →  Form 8949 / FIRS summary     │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## Product intro video
+Steps 1 – 6 run inside the user's agent session. The skill exposes only
+read verbs to the host MCP client (`parse`, `normalize`, `value`, `match`,
+`export`); no write, sign, trade, transfer, or approval tool exists. The
+same CSV plus the same set of user decisions is guaranteed to produce the
+same report — snapshot IDs are deterministic over the inputs (see
+[`src/reports.js`](src/reports.js)).
 
-The Remotion composition `TaxPilotIntro` lives in `src/remotion/`. Install the
-dependencies, open the timeline in Remotion Studio, or render the 45-second
-intro directly:
+---
+
+## Repository layout
+
+```
+skill/                   MIT-licensed MCP skill package
+├── SKILL.md             skill contract, workflow, refusal templates
+├── SUBMISSION.md        Binance Skills Hub publishing steps
+└── references/
+    ├── tool-registry.md         allowlisted Binance MCP tools
+    ├── normalization.md         raw record → tax event mapping
+    ├── tax-methodology.md       US (§A) and NG (§B) rules
+    ├── decision-verbs.md        how user resolutions are recorded
+    └── output-format.md         Form 8949 CSV + audit-package schema
+
+src/
+├── tax-engine.js        deterministic FIFO engine; US + NG policies
+├── normalize.js         Binance record → canonical event adapter
+├── csv-import.js        Binance CSV parser (header aliases)
+├── pricing.js           historical USD valuation
+├── reports.js           snapshot IDs · decision replay · lot merger
+└── mcp-client.js        MCP JSON-RPC client (Streamable HTTP)
+
+test/                    automated tests for every module above
+```
+
+---
+
+## Installation
+
+**Prerequisites**
+
+- Node.js 22 or higher (developed on Node 22+)
+- Git
+- An MCP-capable agent — Claude Code, Claude Desktop, Cursor, or a custom
+  MCP client
+
+**1. Clone and install**
 
 ```bash
+git clone https://github.com/<owner>/binance-taxpilot.git
+cd binance-taxpilot
 npm install
-npm run remotion:studio
-npm run remotion:render
+npm test
 ```
 
-The default render is written to `out/taxpilot-intro.mp4`.
+**2. Register the skill with your agent**
 
-Open the app and choose **Use demo workspace** to explore with synthetic data — no credentials, no Binance permissions.
+The skill lives in `skill/` and is self-contained (SKILL.md + references/).
+For Claude Code:
 
-For a **live** report you must configure OAuth (see *Production deployment* below).
+```bash
+mkdir -p ~/.claude/skills
+ln -s "$(pwd)/skill" ~/.claude/skills/taxpilot
+```
+
+Restart the agent. Confirm the skill is discovered (`/skills` in Claude
+Code lists `taxpilot`).
+
+For other MCP clients, point the client at the `skill/` directory as its
+skill root, or publish to the Binance Skills Hub and install via the hub's
+own tooling — see [`skill/SUBMISSION.md`](skill/SUBMISSION.md) for the
+fork → branch → PR flow.
 
 ---
 
-## Architecture
+## Usage
+
+**1. Export activity from Binance**
+
+In the Binance web interface: **Wallet → Transaction History → Export
+Statement**. Select the tax year and the categories relevant to the user
+(spot trades, converts, universal transfers, deposits, withdrawals,
+futures, margin, rewards).
+
+**2. Attach the CSV and ask the agent**
+
+Attach the CSV file to the agent conversation. Then:
 
 ```
-Browser ──POST /api/agent-os/report (session cookie + CSRF)──▶ server.js
-                                                                   │
-                                                                   ▼
-   src/agent-os.js  buildTaxReportFromAgentOS()
-     │
-     ├─ src/mcp-client.js   initialize → notifications/initialized → tools/list → tools/call
-     │                      (Streamable HTTP: JSON + text/event-stream, Mcp-Session-Id)
-     ├─ src/normalize.js    Agent OS records → tax-engine events (field/type adapter)
-     ├─ src/pricing.js      historical USD valuation for events with no USD leg
-     ├─ src/tax-engine.js   FIFO lots, Form 8949, income, transfers, unresolved
-     └─ src/reports.js      deterministic snapshot IDs + decision replay + historical-lot merger
-                             │
-                             ▼
-                         src/storage.js (file-backed JSON collections + audit JSONL)
+Run TaxPilot on this. Jurisdiction: US. Tax year: 2025.
 ```
 
-Cross-cutting: [`src/security.js`](src/security.js) provides CSRF double-submit tokens, a sliding-window rate limiter, a keyed sync-lock, and credential-scrubbing logging.
+or, for Nigerian filers:
+
+```
+Run TaxPilot on this. Jurisdiction: NG. Tax year: 2025. NGN rate: 1600.
+```
+
+**3. Review the Tax Inbox**
+
+TaxPilot flags every event it cannot resolve unambiguously — missing cost
+basis, ambiguous transfers, unvalued rewards — and asks the user to decide.
+Decisions are recorded via the verbs in
+[`skill/references/decision-verbs.md`](skill/references/decision-verbs.md)
+and are persisted with the report snapshot.
+
+**4. Re-run and export**
+
+Ask the agent to re-run after resolving inbox items. Because the report is
+deterministic, the same CSV plus the same decisions always produces the
+same output. Export:
+
+- **US** — `form-8949.csv` and `audit-package.json`
+- **NG** — `firs-summary.json` and `audit-package.json`
+
+Both include the policy block, per-disposal lot matching, and provenance
+for every valuation.
 
 ---
 
-## Endpoints
+## Methodology
 
-| Method   | Path                                    | Auth | CSRF | Purpose                                              |
-| -------- | --------------------------------------- | ---- | ---- | ---------------------------------------------------- |
-| `GET`    | `/api/health`                           | -    | -    | Liveness + storage-writable probe + drain state      |
-| `GET`    | `/api/csrf`                             | -    | -    | Issue a CSRF token (double-submit cookie)            |
-| `GET`    | `/api/tax-report`                       | -    | -    | Deterministic demo report                            |
-| `GET`    | `/api/auth/binance/start`               | -    | -    | Begin OAuth (PKCE)                                   |
-| `GET`    | `/api/auth/binance/callback`            | -    | -    | OAuth callback                                       |
-| `GET`    | `/api/connections/binance`              | -    | -    | Connection status                                    |
-| `POST`   | `/api/connections/binance/disconnect`   | ✔    | ✔    | Revoke + delete token                                |
-| `POST`   | `/api/agent-os/report`                  | ✔    | ✔    | Run pipeline, persist snapshot                       |
-| `GET`    | `/api/reports`                          | ✔    | -    | List snapshots                                       |
-| `GET`    | `/api/reports/:id`                      | ✔    | -    | Fetch a snapshot                                     |
-| `POST`   | `/api/reports/recompute`                | ✔    | ✔    | Reapply decisions + lots to a base snapshot          |
-| `GET`    | `/api/decisions`                        | ✔    | -    | List review decisions                                |
-| `POST`   | `/api/decisions`                        | ✔    | ✔    | Save a decision on an unresolved event               |
-| `GET`    | `/api/historical-lots`                  | ✔    | -    | List imported lots                                   |
-| `POST`   | `/api/historical-lots`                  | ✔    | ✔    | Import lots                                          |
-| `DELETE` | `/api/historical-lots/:id`              | ✔    | ✔    | Delete a lot                                         |
-| `GET`    | `/api/audit-log`                        | ✔    | -    | Read the user's audit trail                          |
-| `GET`    | `/api/metrics`                          | ✔    | -    | Per-user counts (syncs, decisions, failures)         |
-| `POST`   | `/api/user/export`                      | ✔    | ✔    | Export all data for the caller                       |
-| `POST`   | `/api/user/delete`                      | ✔    | ✔    | Delete all data for the caller                       |
-| `GET/POST` | `/api/reports/form-8949.csv`          | -    | -    | Form 8949 CSV (demo or inline report)                |
-| `POST`   | `/api/mcp`                              | -    | -    | Dev-only MCP proxy (off by default; off in prod)     |
+The full per-jurisdiction rule set is documented in
+[`skill/references/tax-methodology.md`](skill/references/tax-methodology.md).
+Highlights:
+
+**United States**
+
+- Digital assets are property (IRS Notice 2014-21, reaffirmed at
+  [IRS Digital Assets](https://www.irs.gov/filing/digital-assets)).
+- Per-wallet FIFO lot accounting under
+  [Rev. Proc. 2024-28](https://www.irs.gov/pub/irs-drop/rp-24-28.pdf) —
+  lots keyed by `(accountId, asset)`; TaxPilot does not pool lots across
+  accounts.
+- Holding period per IRS Pub 544 "one day after acquisition" rule.
+- Ordinary income (staking, airdrops, rewards) recognized at FMV on
+  receipt.
+- Reported on [Form 8949](https://www.irs.gov/forms-pubs/about-form-8949)
+  + Schedule D.
+
+**Nigeria**
+
+- Digital assets are chargeable assets under the
+  [Finance Act 2023](https://firs.gov.ng/finance-act-2023/).
+- Flat 10% Capital Gains Tax on net disposal gain, effective 1 September
+  2023.
+- No short-term vs long-term distinction.
+- Staking, airdrops, and rewards are Personal Income Tax at the user's
+  bracket (7% – 24% under PITA) — TaxPilot reports the ordinary-income
+  total but does not compute the PIT owed.
+- Losses may offset gains in the same tax year; excess-loss carryforward is
+  flagged for the user's advisor rather than assumed.
+- All valuations are computed in USD; NGN is a presentation-layer
+  conversion using the exchange rate the user supplies.
+
+**Explicitly out of scope** (both jurisdictions)
+
+- Wash-sale rules for digital assets.
+- Cost-basis methods other than FIFO.
+- Mining income (on-chain rewards outside the exchange).
+- Character disputes (staking-as-a-service vs solo, hard fork treatment,
+  NFT capital vs ordinary).
+- State-level tax (US) and Personal Income Tax computation (NG).
+
+Every out-of-scope item is surfaced to the user, not silently assumed.
+
+---
+
+## Reproducibility and verification
+
+- **Deterministic snapshots.** `snapshotId()` in
+  [`src/reports.js`](src/reports.js) hashes `(events, decisions,
+  historicalLots, policy version, engine version, jurisdiction, tax year)`.
+  Identical inputs produce the same ID; any change produces a new ID.
+- **Decision replay.** A snapshot plus a set of decisions is re-computable
+  without re-pulling history.
+- **Historical-lot merger.** Basis for pre-scope acquisitions can be
+  imported and merged into the FIFO queue before matching.
+- **Automated tests.** The methodology engine and every supporting adapter
+  are covered by an automated test suite (`npm test`).
+
+Verification checklist a user (or an evaluator) can run:
+
+```bash
+npm test                                            # methodology + adapters
+node --test test/tax-engine.test.js                 # engine only
+grep -R "capitalGainsRate" src/tax-engine.js        # inspect policy constants
+```
 
 ---
 
 ## Security posture
 
-- **Read-only pipeline.** The `BINANCE_HISTORY_TOOLS` allowlist in [`src/agent-os.js`](src/agent-os.js) is enforced before any `tools/call`. Every write verb is on a deny list.
-- **CSRF everywhere.** Double-submit token (`taxpilot_csrf` cookie + `x-csrf-token` header) required on every mutating route.
-- **Rate-limited.** Sliding window, 120 req/min per session or IP, `Retry-After` header on 429.
-- **Session invalidation is honored.** A destroyed session cookie is treated as unauthenticated even if the cookie string is still present.
-- **Encrypted at rest.** OAuth tokens use AES-256-GCM (`EncryptedTokenStore`). Files are `0600`.
-- **Structured redaction.** `redact()` scrubs authorization headers, cookies, tokens, and inline Bearer/Basic strings before anything hits the audit log or `safeLog`.
-- **CSP / HSTS / X-Frame-Options / Referrer-Policy** on every response. HSTS only when `NODE_ENV=production`.
-- **Graceful shutdown.** SIGTERM/SIGINT stops accepting new work, drains in-flight requests, and flushes queued writes.
-- **Per-user sync lock.** Concurrent syncs from one user are serialized; two clicks won't race the storage layer.
+The skill is read-only by contract, not by after-the-fact policy:
 
----
-
-## Environment
-
-Copy [`.env.example`](.env.example) to `.env`. Every var is documented there. Required for a live deploy: the eight `BINANCE_OAUTH_*` vars plus `SESSION_SECRET` and `TOKEN_ENCRYPTION_KEY` (32+ bytes of entropy each).
-
-```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
-```
-
----
-
-## Production deployment
-
-### 1. Get OAuth client credentials from Binance
-
-**Important:** Binance Login (OAuth 2.0) is currently offered only to close ecosystem partners — not a self-service developer portal. See the official notice at <https://developers.binance.com/en/docs/products/login/introduction>:
-
-> "For now, Binance Login (Oauth2.0), is only provided to close ecosystem partners now. Please reach to our business team for more details."
-
-**How to reach them:**
-
-| Channel | Where |
-|---------|-------|
-| Agent OS partnership page | <https://www.binance.com/en/agent-os> (look for a "Contact" / "Partner with us" section) |
-| Developer forum | <https://dev.binance.vision> |
-| Developer Telegram | <https://t.me/binance_api_english> |
-| General BD email | `bd@binance.com` (typical partnership address; ask them to route) |
-
-Ask specifically for **Binance Login OAuth 2.0 partner onboarding** and describe your use case: read-only access to spot trades, deposits, withdrawals, converts, universal transfers, futures, and margin history for tax reporting.
-
-Binance will issue:
-- `client_id`
-- `client_secret`
-- The exact **scope names** you're approved for (documented examples: `user:openId`, `create:apikey`; tax-specific scopes are assigned per partner)
-
-The **runtime endpoints** are documented and already the code defaults, so you don't need to look them up:
-
-| | URL |
-|--|--|
-| Authorization | `https://accounts.binance.com/en/oauth/authorize` |
-| Token | `https://accounts.binance.com/oauth/token` |
-| PKCE | `S256` supported and recommended |
-| Scope format | comma-separated (Binance-specific, not the OAuth 2.0 default of space-separated) |
-
-**Your redirect URI** will be `https://<your-domain>/api/auth/binance/callback` — give this to Binance during onboarding.
-
-### 2a. One-click deploy on Railway (fastest)
-
-TaxPilot ships with [`railway.toml`](railway.toml) and [`nixpacks.toml`](nixpacks.toml) so a Railway deploy needs three clicks:
-
-1. Push this repo to GitHub.
-2. Go to [railway.app](https://railway.app) → **New Project → Deploy from GitHub** → pick the repo.
-3. In the service's **Settings**, add a **Volume** and mount it at `/data`.
-4. In the service's **Variables**, set:
-   - `NODE_ENV=production`
-   - `TAXPILOT_DATA_DIR=/data`
-   - `SESSION_SECRET=<generate>` (`node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`)
-   - `TOKEN_ENCRYPTION_KEY=<generate>` (same command, different value)
-5. Deploy. Railway assigns a public URL; add it to your Binance OAuth redirect list once you're onboarded.
-
-Health check at `/api/health` is already wired via `railway.toml`. Graceful shutdown drains in-flight requests before Railway kills the container.
-
-### 2b. Provision a host (any other target)
-
-Any Node 18+ host works. Recommended layout:
-
-- **HTTPS terminator** in front (nginx / Caddy / CloudFlare). TaxPilot expects to receive plain HTTP from the terminator and adds HSTS + Secure cookies when `NODE_ENV=production`.
-- **Persistent volume** mounted at `TAXPILOT_DATA_DIR` (default `.taxpilot-data/`). Include this in your backup schedule — it holds sessions, encrypted tokens, reports, decisions, lots, and the audit log.
-- **Process supervisor** (systemd, k8s, PM2) that sends SIGTERM on stop and gives at least 30s for the graceful-shutdown drain.
-
-Example systemd unit:
-
-```ini
-[Unit]
-Description=TaxPilot
-After=network.target
-
-[Service]
-Environment=NODE_ENV=production
-Environment=PORT=8080
-Environment=TAXPILOT_DATA_DIR=/var/lib/taxpilot
-EnvironmentFile=/etc/taxpilot/env
-ExecStart=/usr/bin/node /opt/taxpilot/server.js
-Restart=on-failure
-TimeoutStopSec=45s
-User=taxpilot
-ReadWritePaths=/var/lib/taxpilot
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Example nginx snippet:
-
-```nginx
-server {
-  listen 443 ssl http2;
-  server_name taxpilot.example.com;
-
-  ssl_certificate     /etc/ssl/fullchain.pem;
-  ssl_certificate_key /etc/ssl/privkey.pem;
-
-  # TaxPilot sets its own HSTS + CSP in production.
-  location / {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-}
-```
-
-### 3. First-run verification
-
-```bash
-curl -sf https://taxpilot.example.com/api/health | jq
-# Expect { "ok": true, "storage": { "ok": true }, "oauthConfigured": true, ... }
-```
-
-Then walk the connect → sync → decision → export flow end-to-end with a test Binance account.
-
-### 4. Backups
-
-Snapshot `TAXPILOT_DATA_DIR` at least daily. The file layout is stable JSON, safe to `cp -r` while the server runs (writes are atomic renames). Restore is `stop → rsync → start`.
-
-### 5. Key rotation
-
-`SESSION_SECRET` and `TOKEN_ENCRYPTION_KEY` are read at process start. To rotate:
-
-1. Distribute the new keys.
-2. Restart the process — existing sessions and encrypted tokens become unreadable and users must reconnect.
-3. To rotate without invalidating stored data, script a decrypt-with-old, re-encrypt-with-new pass over `tokens.json` before deploying the new key.
-
----
-
-## Publishing the Skill
-
-The `skill/` directory is a self-contained MIT-licensed package that matches the Binance Skills Hub layout. See [`skill/SUBMISSION.md`](skill/SUBMISSION.md) for the fork → branch → PR steps. Once merged, users install it via:
-
-```bash
-npx skills add https://github.com/binance/binance-skills-hub/tree/main/skills/binance/taxpilot
-```
-
-The skill and the reference web app share the same methodology but ship for different audiences: the skill lives inside an agent session; the web app is a hosted dashboard.
+- **No write verbs are registered.** The MCP surface exposes `parse`,
+  `normalize`, `value`, `match`, and `export` only. No tool with a name
+  beginning `create_`, `delete_`, `send_`, `place_`, `cancel_`, `borrow_`,
+  or `withdraw_` is discoverable to the host agent.
+- **No network egress from user code.** All processing happens inside the
+  agent session on the CSV in context. TaxPilot does not call Binance from
+  user code and does not require an API key.
+- **No credential handling.** The skill does not read, print, log, or copy
+  any authentication token or session identifier that its host agent may
+  hold.
+- **Deterministic auditability.** Every disposal in the report names the
+  lot(s) consumed with acquisition timestamps and per-lot basis; every
+  valuation names its source (`event-time`, `daily-close-usdt`,
+  `daily-close-usdc`, or `stablecoin-quote`).
 
 ---
 
 ## Testing
 
 ```bash
-npm test            # 55 tests
-node --test test/normalize.test.js   # single file
+npm test                              # full suite
+node --test test/tax-engine.test.js   # engine only
+node --test test/normalize.test.js    # CSV → event adapter
+node --test test/reports.test.js      # snapshots + decision replay
 ```
 
-CI runs on push and PR via [.github/workflows/ci.yml](.github/workflows/ci.yml): tests on Node 20 + 22, dependency audit, a basic secret pattern scan, and a boot check that hits `/api/health`.
+The engine tests exercise both US and NG jurisdictions:
+
+- `US report includes a Schedule D summary and income-by-category breakdown`
+- `NG report applies 10% CGT and skips holding-period split`
+- `NG report converts estimated tax to NGN when usdToLocalRate provided`
+- `NG losses do not produce a negative tax owed`
+
+---
+
+## Continuous integration
+
+The [`.github/workflows/ci.yml`](.github/workflows/ci.yml) workflow runs on
+every push and pull request:
+
+- test suite on Node 20 and Node 22
+- `npm audit --omit=dev` for known-vulnerable dependencies
+- a static scan for accidentally-committed secrets
+
+---
+
+## Publishing to the Binance Skills Hub
+
+The `skill/` directory is a self-contained MIT-licensed package that
+matches the [Binance Skills Hub](https://github.com/binance/binance-skills-hub)
+layout. See [`skill/SUBMISSION.md`](skill/SUBMISSION.md) for the exact
+fork → branch → PR steps. Once merged, users install it with:
+
+```bash
+npx skills add https://github.com/binance/binance-skills-hub/tree/main/skills/binance/taxpilot
+```
 
 ---
 
 ## Disclaimer
 
-TaxPilot provides estimates for educational purposes and is **not tax or legal advice**. Have a licensed CPA or enrolled agent review before filing.
+TaxPilot provides mechanical estimates from a user's own Binance history for
+educational and workflow purposes. It is **not tax advice, not legal
+advice, and not a substitute for a licensed practitioner**. Users must
+have a qualified CPA, enrolled agent, chartered accountant, or their
+jurisdiction's equivalent review any report before filing. TaxPilot does
+not file tax returns and does not communicate with any tax authority on the
+user's behalf.
 
 ---
 
 ## References
 
-- Binance Agent OS — <https://www.binance.com/en/agent-os>
-- Binance Skills Hub — <https://www.binance.com/en/skills> · <https://github.com/binance/binance-skills-hub>
-- Model Context Protocol — <https://modelcontextprotocol.io>
-- IRS Digital Assets — <https://www.irs.gov/filing/digital-assets>
-- Form 8949 — <https://www.irs.gov/forms-pubs/about-form-8949>
-- Rev. Proc. 2024-28 — <https://www.irs.gov/pub/irs-drop/rp-24-28.pdf>
-# taxpilotskill
+- Binance Agent OS — https://www.binance.com/en-NG/agent-os
+- Binance Skills Hub — https://www.binance.com/en/skills · https://github.com/binance/binance-skills-hub
+- Model Context Protocol — https://modelcontextprotocol.io
+- IRS Digital Assets — https://www.irs.gov/filing/digital-assets
+- IRS Form 8949 — https://www.irs.gov/forms-pubs/about-form-8949
+- Rev. Proc. 2024-28 (US per-wallet basis allocation) — https://www.irs.gov/pub/irs-drop/rp-24-28.pdf
+- FIRS Finance Act 2023 (Nigeria 10% CGT on digital assets) — https://firs.gov.ng/finance-act-2023/
+- PwC Nigeria — Finance Act 2023 summary — https://www.pwc.com/ng/en/publications/finance-act-2023.html
